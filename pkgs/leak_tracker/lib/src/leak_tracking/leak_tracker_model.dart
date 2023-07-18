@@ -20,6 +20,16 @@ class LeakTrackerGlobalSettings {
   /// If the number is too big, the performance may be seriously impacted.
   /// If null, path will be requested without limit.
   static int? maxRequestsForRetainingPath = 10;
+
+  /// Fraction of tests to check for memory leaks.
+  ///
+  /// A test will be checked if fraction of previously ran tests
+  /// where alwaysCheckForLeaks is false, is less than the value.
+  ///
+  /// If null, all tests will be checked.
+  ///
+  /// Must be in range [0, 1).
+  static double? fractionOfTestsToCheck;
 }
 
 /// Handler to collect leak summary.
@@ -142,6 +152,7 @@ class LeakTrackingTestConfig {
     this.notDisposedAllowList = const <String, int>{},
     this.allowAllNotDisposed = false,
     this.allowAllNotGCed = false,
+    this.alwaysCheckForLeaks = false,
   });
 
   /// Creates a new instance of [LeakTrackingTestConfig] for debugging leaks.
@@ -160,6 +171,7 @@ class LeakTrackingTestConfig {
     this.notDisposedAllowList = const <String, int>{},
     this.allowAllNotDisposed = false,
     this.allowAllNotGCed = false,
+    this.alwaysCheckForLeaks = true,
   });
 
   /// Creates a new instance of [LeakTrackingTestConfig] to collect retaining path.
@@ -176,6 +188,7 @@ class LeakTrackingTestConfig {
     this.notDisposedAllowList = const <String, int>{},
     this.allowAllNotDisposed = false,
     this.allowAllNotGCed = false,
+    this.alwaysCheckForLeaks = true,
   });
 
   /// When to collect stack trace information.
@@ -217,4 +230,9 @@ class LeakTrackingTestConfig {
 
   /// If true, all notGCed leaks will be allowed.
   final bool allowAllNotGCed;
+
+  /// If true, the leak tracker will always check the test for leaks.
+  ///
+  /// Otherwise, it will respect [LeakTrackerGlobalSettings.fractionOfTestsToCheck].
+  final bool alwaysCheckForLeaks;
 }
