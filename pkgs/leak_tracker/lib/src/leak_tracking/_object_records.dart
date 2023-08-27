@@ -2,8 +2,34 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:collection/collection.dart';
+
 import '../shared/_primitives.dart';
 import '_object_record.dart';
+
+class ObjectRecordSet {
+  final records = <IdentityHashCode, List<ObjectRecord>>{};
+
+  ObjectRecord? record(Object object) {
+    final code = identityHashCode(object);
+
+    final list = records[code];
+    if (list == null) return null;
+    return list.firstWhereOrNull((r) => r.ref.target == object);
+  }
+
+  ObjectRecord addOrGet(Object object) {
+    final code = identityHashCode(object);
+
+    final list = records[code];
+    if (list != null) {
+      final result = list.firstWhereOrNull((r) => r.ref.target == object);
+      if (result != null) return result;
+    }
+
+    return ObjectRecord(object, context, type, trackedClass, phase);
+  }
+}
 
 /// Object collections to track leaks.
 ///
