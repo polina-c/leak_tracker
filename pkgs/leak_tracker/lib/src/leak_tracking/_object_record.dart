@@ -10,12 +10,15 @@ import '_primitives/model.dart';
 /// Information about an object, tracked for leaks.
 class ObjectRecord {
   ObjectRecord(
-    this.code,
+    Object object,
     this.context,
-    this.type,
     this.trackedClass,
     this.phase,
-  );
+    this.code,
+  )   : ref = WeakReference(object),
+        type = object.runtimeType;
+
+  final WeakReference<Object> ref;
 
   final IdentityHashCode code;
 
@@ -23,7 +26,7 @@ class ObjectRecord {
 
   final PhaseSettings phase;
 
-  /// Type of the tracked object.
+  /// Runtime type of the tracked object.
   final Type type;
 
   final String trackedClass;

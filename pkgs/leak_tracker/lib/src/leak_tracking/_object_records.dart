@@ -3,31 +3,51 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'package:collection/collection.dart';
+import 'package:meta/meta.dart';
 
 import '../shared/_primitives.dart';
 import '_object_record.dart';
+import '_primitives/model.dart';
 
+@visibleForTesting
 class ObjectRecordSet {
-  final records = <IdentityHashCode, List<ObjectRecord>>{};
+  ObjectRecordSet({this.coder = standardIdentityHashCoder});
+
+  final IdentityHashCoder coder;
+
+  final _records = <IdentityHashCode, List<ObjectRecord>>{};
 
   ObjectRecord? record(Object object) {
     final code = identityHashCode(object);
 
-    final list = records[code];
+    final list = _records[code];
     if (list == null) return null;
+
     return list.firstWhereOrNull((r) => r.ref.target == object);
   }
 
-  ObjectRecord addOrGet(Object object) {
+  void remove(ObjectRecord record) {
+    final list = _records[record.code];
+    list?.removeWhere((r) => r == record);
+    if (list == null || list.isEmpty) _records.remove(record.code);
+  }
+
+  ObjectRecord putIfAbsent(
+    Object object,
+    Map<String, dynamic>? context,
+    PhaseSettings phase,
+    String trackedClass,
+  ) {
     final code = identityHashCode(object);
 
-    final list = records[code];
-    if (list != null) {
-      final result = list.firstWhereOrNull((r) => r.ref.target == object);
-      if (result != null) return result;
-    }
+    final list = _records.putIfAbsent(code, () => []);
 
-    return ObjectRecord(object, context, type, trackedClass, phase);
+    final existing = list.firstWhereOrNull((r) => r.ref.target == object);
+    if (existing != null) return existing;
+
+    final result = ObjectRecord(object, context, trackedClass, phase);
+    list.add(result);
+    return result;
   }
 }
 
@@ -44,19 +64,17 @@ class ObjectRecordSet {
 /// and, if it was GCed wrongly, added to one of gced... collections.
 class ObjectRecords {
   /// All not GCed objects.
-  final Map<IdentityHashCode, ObjectRecord> notGCed =
-      <IdentityHashCode, ObjectRecord>{};
+  final notGCed = ObjectRecordSet();
 
   /// Not GCed objects, that were disposed and are not expected to be GCed yet.
-  final Set<IdentityHashCode> notGCedDisposedOk = <IdentityHashCode>{};
+  final notGCedDisposedOk = <ObjectRecord>{};
 
   /// Not GCed objects, that were disposed and are overdue to be GCed.
-  final Set<IdentityHashCode> notGCedDisposedLate = <IdentityHashCode>{};
+  final notGCedDisposedLate = <ObjectRecord>{};
 
   /// Not GCed objects, that were disposed, are overdue to be GCed,
   /// and were collected as nonGCed leaks.
-  final Set<IdentityHashCode> notGCedDisposedLateCollected =
-      <IdentityHashCode>{};
+  final notGCedDisposedLateCollected = <ObjectRecord>{};
 
   /// GCed objects that were late to be GCed.
   final List<ObjectRecord> gcedLateLeaks = <ObjectRecord>[];
@@ -64,11 +82,7 @@ class ObjectRecords {
   /// GCed ibjects that were not disposed.
   final List<ObjectRecord> gcedNotDisposedLeaks = <ObjectRecord>[];
 
-  /// As identityHashCode is not unique, we ignore objects that happen to have
-  /// equal code.
-  final Set<IdentityHashCode> duplicates = <int>{};
-
-  void _assertNotWatched(IdentityHashCode code) {
+  void _assertNotWatched(ObjectRecord record) {
     assert(() {
       assert(!notGCed.containsKey(code));
       assert(!notGCedDisposedOk.contains(code));
