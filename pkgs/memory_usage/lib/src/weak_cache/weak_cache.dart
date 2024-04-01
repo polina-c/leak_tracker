@@ -72,7 +72,7 @@ class WeakCache<T extends Object> {
 
   /// Removes object equal to [object] if it is in the cache.
   ///
-  /// Also defragments the bin with hash [Object.hashCode] of [object].
+  /// It is not necessary to call this method when [useFinalizers] is `true`.
   void remove(T object) {
     final code = coder(object);
     final bin = _objects[code];
@@ -129,7 +129,7 @@ class WeakCache<T extends Object> {
   }
 
   void _setFinalizer(T object, int code) {
-    throw UnimplementedError('Finalizers are not implemented yet.');
+    _finalizer?.attach(object: object, token: code);
   }
 
   ({T object, bool wasAbsent}) putIfAbsent(T object) {
