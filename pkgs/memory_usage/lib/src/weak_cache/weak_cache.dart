@@ -52,6 +52,12 @@ class WeakCache<T extends Object> {
 
   late final FinalizerWrapper<HashCode>? _finalizer;
 
+  /// Weather to optimize internal lists fr memory footprint.
+  ///
+  /// If `true`, the internal lists are optimized for memory footprint:
+  /// they are converted to unmodifiable before being stored.
+  ///
+  /// If `false`, the lists are optimized for performance.
   final bool useUnmodifiableLists;
 
   @visibleForTesting
@@ -109,6 +115,8 @@ class WeakCache<T extends Object> {
   /// the objects.
   ///
   /// If [removeEmpty] is `true`, removes the bin if it is empty.
+  /// This flag is needed to avoid exception of concurrent modification during
+  /// iteration.
   void _defragment(
     HashCode code, {
     T? toRemove,
@@ -119,7 +127,7 @@ class WeakCache<T extends Object> {
     if (bin == null && toAdd == null) return;
     bin ??= [];
 
-    final newBin = <WeakReference<T>>[];
+    var newBin = <WeakReference<T>>[];
 
     for (var i = 0; i < bin.length; i++) {
       final target = bin[i].target;
@@ -136,10 +144,16 @@ class WeakCache<T extends Object> {
     if (toRemove == null && toAdd == null && newBin.length == bin.length) {
       return;
     }
+
+    if (useUnmodifiableLists) {
+      newBin = List.unmodifiable(newBin);
+    }
+
     _objects[code] = newBin;
   }
 
-  void _setFinalizer(T object, int code) {
+  void _maybeSetFinalizer(T object, int code) {
+    if (!useFinalizers) return;
     _finalizer?.attach(object: object, token: code);
   }
 
@@ -148,7 +162,7 @@ class WeakCache<T extends Object> {
     final bin = _objects[code];
 
     if (bin == null) {
-      _objects[code] = [WeakReference(object)]; //unmodifiable ????
+      _objects[code] = List.unmodifiable([WeakReference(object)]);
       return (object: object, wasAbsent: true);
     }
 
@@ -157,6 +171,7 @@ class WeakCache<T extends Object> {
     if (existing != null) return (object: existing.target!, wasAbsent: false);
 
     _defragment(code, toAdd: object);
+    _maybeSetFinalizer(object, code);
     return (object: object, wasAbsent: true);
   }
 
