@@ -29,7 +29,11 @@ class WeakCache<T extends Object> {
     @visibleForTesting this.coder = standardHashCoder,
     this.useFinalizers = true,
     this.useUnmodifiableLists = true,
-  });
+  }) {
+    if (useFinalizers) {
+      throw UnimplementedError('Finalizers are not implemented yet.');
+    }
+  }
 
   final _objects = <HashCode, _WeakList<T>>{};
 
