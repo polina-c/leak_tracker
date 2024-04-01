@@ -3,6 +3,16 @@
 
 # memory_usage
 
+## What is this?
+
+This package enables [memory usage tracking, auto-snapshotting and optimization](https://github.com/dart-lang/leak_tracker/blob/main/doc/USAGE.md).
+
+## Usage
+
+Use the function `trackMemoryUsage` to configure usage events and auto-snapshotting in your Dart or Flutter application.
+
+See [usage tracking guidance](https://github.com/dart-lang/leak_tracker/blob/main/doc/USAGE.md) for more details.
+
 ## Status: Experimental
 
 **NOTE**: This package is currently experimental and published under the
@@ -18,12 +28,4 @@ Your feedback is valuable and will help us evolve this package. For general
 feedback, suggestions, and comments, please file an issue in the
 [bug tracker](https://github.com/dart-lang/leak_tracker/issues).
 
-## What is this?
 
-This package enables [memory usage tracking and auto-snapshotting](https://github.com/dart-lang/leak_tracker/blob/main/doc/USAGE.md).
-
-## Usage
-
-Use the function `trackMemoryUsage` to configure usage events and auto-snapshotting in your Dart or Flutter application.
-
-See [usage tracking guidance](https://github.com/dart-lang/leak_tracker/blob/main/doc/USAGE.md) for more details.
