@@ -31,6 +31,7 @@ class WeakCache<T extends Object> {
     @visibleForTesting FinalizerBuilder<HashCode>? finalizerBuilder,
     this.useFinalizers = true,
     this.useUnmodifiableLists = true,
+    this.assertUnnecessaryRemove = true,
   }) {
     if (useFinalizers) {
       finalizerBuilder ??= buildStandardFinalizer<HashCode>;
@@ -46,6 +47,8 @@ class WeakCache<T extends Object> {
   ///
   /// If `false`, the [defragment] method needs to be called from time to time.
   final bool useFinalizers;
+
+  final bool assertUnnecessaryRemove;
 
   late final FinalizerWrapper<HashCode>? _finalizer;
 
@@ -74,6 +77,14 @@ class WeakCache<T extends Object> {
   ///
   /// It is not necessary to call this method when [useFinalizers] is `true`.
   void remove(T object) {
+    assert(() {
+      assert(
+        !useFinalizers || !assertUnnecessaryRemove,
+        'This method is not needed when using finalizers.',
+      );
+      return true;
+    }());
+
     final code = coder(object);
     final bin = _objects[code];
     if (bin == null) return;
