@@ -12,22 +12,23 @@ typedef FinalizerBuilder = FinalizerWrapper Function(
 FinalizerWrapper buildStandardFinalizer(ObjectGcCallback onObjectGc) =>
     StandardFinalizerWrapper(onObjectGc);
 
-abstract class FinalizerWrapper {
-  void attach(Object object, Object token);
+abstract class FinalizerWrapper<T extends Object> {
+  void attach({required Object object, required T token});
 }
 
 /// Finalizer wrapper to mock standard [Finalizer].
 ///
-/// Needed because the standard [Finalizer] is final and
+/// Is needed because the standard [Finalizer] is final and
 /// thus cannot be implemented.
-class StandardFinalizerWrapper implements FinalizerWrapper {
+class StandardFinalizerWrapper<T extends Object>
+    implements FinalizerWrapper<T> {
   StandardFinalizerWrapper(ObjectGcCallback onObjectGc)
-      : _finalizer = Finalizer<Object>(onObjectGc);
+      : _finalizer = Finalizer<T>(onObjectGc);
 
-  final Finalizer<Object> _finalizer;
+  final Finalizer<T> _finalizer;
 
   @override
-  void attach(Object object, Object token) {
+  void attach({required Object object, required T token}) {
     _finalizer.attach(object, token);
   }
 }
