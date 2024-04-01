@@ -5,9 +5,13 @@
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
+import '_finalizer.dart';
 import '_hash_coder.dart';
 
 typedef _WeakList<T extends Object> = List<WeakReference<T>>;
+
+@visibleForTesting
+typedef ItemToken = int;
 
 /// Weak cache for objects.
 ///
@@ -17,32 +21,45 @@ typedef _WeakList<T extends Object> = List<WeakReference<T>>;
 /// [WeakCache] enables to store only one instance of each object,
 /// without holding the object from being garbage collected.
 ///
-/// When stored objects are released [WeakReference]s need to be removed.
-/// There are two ways how [WeakCache] this can be taken care of:
+/// When stored objects are released, their [WeakReference]s need to be removed
+/// from the cache. There are two ways how this can be taken care of:
 /// - Set [useFinalizers] to `true`.
 /// - Call [defragment] method from time to time.
 ///
-/// Balance between performance and memory usage can be adjusted
+/// Balance between memory usage  and performance can be adjusted
 /// with [useFinalizers] and [useUnmodifiableLists].
 class WeakCache<T extends Object> {
   WeakCache({
     @visibleForTesting this.coder = standardHashCoder,
+    @visibleForTesting FinalizerBuilder<ItemToken>? finalizerBuilder,
     this.useFinalizers = true,
     this.useUnmodifiableLists = true,
   }) {
     if (useFinalizers) {
-      throw UnimplementedError('Finalizers are not implemented yet.');
+      finalizerBuilder ??= buildStandardFinalizer<ItemToken>;
+      _finalizer = finalizerBuilder(_onObjectGarbageCollected);
+    } else {
+      _finalizer = null;
     }
   }
 
   final _objects = <HashCode, _WeakList<T>>{};
 
+  /// If `true`, the [Finalizer] is used to remove [WeakReference]s.
+  ///
+  /// If `false`, the [defragment] method needs to be called from time to time.
   final bool useFinalizers;
+
+  late final FinalizerWrapper<ItemToken>? _finalizer;
 
   final bool useUnmodifiableLists;
 
   @visibleForTesting
   final HashCoder coder;
+
+  void _onObjectGarbageCollected(ItemToken token) {
+    _defragment<T>(_objects[token]);
+  }
 
   /// Returns object equal to [object] if it is in the cache.
   ///
@@ -89,7 +106,8 @@ class WeakCache<T extends Object> {
   /// the objects.
   ///
   /// Returns [bin] if set of objects did not change.
-  _WeakList<T> _defragment(_WeakList<T> bin, {T? toRemove, T? toAdd}) {
+  static _WeakList<T> _defragment<T extends Object>(_WeakList<T> bin,
+      {T? toRemove, T? toAdd}) {
     final result = <WeakReference<T>>[];
     for (var i = 0; i < bin.length; i++) {
       final target = bin[i].target;
@@ -103,6 +121,10 @@ class WeakCache<T extends Object> {
       return bin;
     }
     return result;
+  }
+
+  void _setFinalizer(T object, int code) {
+    throw UnimplementedError('Finalizers are not implemented yet.');
   }
 
   ({T object, bool wasAbsent}) putIfAbsent(T object) {
@@ -124,7 +146,27 @@ class WeakCache<T extends Object> {
     return (object: object, wasAbsent: true);
   }
 
+  /// Removes empty instances of [WeakReference] used to store removed items.
+  ///
+  /// Should be called from time to time when [useFinalizers] is `false`.
+  ///
+  /// Calling this method immediately after [remove] will NOT result
+  /// in removal of the reference, because
+  /// garbage collection is not immediate.
+  /// Instead, call this method after
+  /// set of async operations following [remove], and/or immediately before
+  /// memory heavy operations, to decrease chances of out of memory crash.
+  ///
+  /// Performs full scan of the cache, so should not be called too often.
+  ///
+  /// This method is not noticed to block UI thread.
+  /// If it happened for your application, please
+  /// [file an issue](https://github.com/dart-lang/leak_tracker/issues/new/choose).
   void defragment() {
+    assert(
+      useFinalizers == false,
+      'This method is not needed when using finalizers.',
+    );
     for (final entry in _objects.entries) {
       _objects[entry.key] = _defragment(entry.value);
     }
