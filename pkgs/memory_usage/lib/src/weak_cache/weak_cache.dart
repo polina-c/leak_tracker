@@ -11,13 +11,24 @@ typedef _WeakList<T extends Object> = List<WeakReference<T>>;
 
 /// Weak cache for objects.
 ///
-/// Balance between performance and memory usage,
+/// Is useful when the immutable objects are duplicated across the codebase,
+/// that impacts memory footprint.
+///
+/// [WeakCache] enables to store only one instance of each object,
+/// without holding the object from being garbage collected.
+///
+/// When stored objects are released [WeakReference]s need to be removed.
+/// There are two ways how [WeakCache] this can be taken care of:
+/// - Set [useFinalizers] to `true`.
+/// - Call [defragment] method from time to time.
+///
+/// Balance between performance and memory usage can be adjusted
 /// with [useFinalizers] and [useUnmodifiableLists].
 class WeakCache<T extends Object> {
   WeakCache({
     @visibleForTesting this.coder = standardHashCoder,
-    this.useFinalizers = false,
-    this.useUnmodifiableLists = false,
+    this.useFinalizers = true,
+    this.useUnmodifiableLists = true,
   });
 
   final _objects = <HashCode, _WeakList<T>>{};
@@ -41,7 +52,7 @@ class WeakCache<T extends Object> {
     return ref?.target;
   }
 
-  /// Removes object equal to [object] if it exists in the set.
+  /// Removes object equal to [object] if it is in the cache.
   ///
   /// Also defragments the bin with hash [Object.hashCode] of [object].
   void remove(T object) {
