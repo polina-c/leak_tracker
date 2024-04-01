@@ -10,9 +10,6 @@ import '_hash_coder.dart';
 
 typedef _WeakList<T extends Object> = List<WeakReference<T>>;
 
-@visibleForTesting
-typedef ItemToken = int;
-
 /// Weak cache for objects.
 ///
 /// Is useful when the immutable objects are duplicated across the codebase,
@@ -31,12 +28,12 @@ typedef ItemToken = int;
 class WeakCache<T extends Object> {
   WeakCache({
     @visibleForTesting this.coder = standardHashCoder,
-    @visibleForTesting FinalizerBuilder<ItemToken>? finalizerBuilder,
+    @visibleForTesting FinalizerBuilder<HashCode>? finalizerBuilder,
     this.useFinalizers = true,
     this.useUnmodifiableLists = true,
   }) {
     if (useFinalizers) {
-      finalizerBuilder ??= buildStandardFinalizer<ItemToken>;
+      finalizerBuilder ??= buildStandardFinalizer<HashCode>;
       _finalizer = finalizerBuilder(_onObjectGarbageCollected);
     } else {
       _finalizer = null;
@@ -50,15 +47,15 @@ class WeakCache<T extends Object> {
   /// If `false`, the [defragment] method needs to be called from time to time.
   final bool useFinalizers;
 
-  late final FinalizerWrapper<ItemToken>? _finalizer;
+  late final FinalizerWrapper<HashCode>? _finalizer;
 
   final bool useUnmodifiableLists;
 
   @visibleForTesting
   final HashCoder coder;
 
-  void _onObjectGarbageCollected(ItemToken token) {
-    _defragment<T>(_objects[token]);
+  void _onObjectGarbageCollected(HashCode token) {
+    _defragment(token);
   }
 
   /// Returns object equal to [object] if it is in the cache.
@@ -92,35 +89,43 @@ class WeakCache<T extends Object> {
 
     // Rare case when hash codes of different objects are equal.
     assert(bin.length > 1);
-    final defragmented = _defragment(bin, toRemove: object);
-    if (defragmented.isEmpty) {
-      _objects.remove(code);
-    } else {
-      _objects[code] = defragmented;
-    }
+    _defragment(code, toRemove: object);
   }
 
-  /// Returns list without empty references.
+  /// Defragments references at [code].
   ///
   /// If [toRemove] and/or [toAdd] are provided, removes and/or adds
   /// the objects.
   ///
-  /// Returns [bin] if set of objects did not change.
-  static _WeakList<T> _defragment<T extends Object>(_WeakList<T> bin,
-      {T? toRemove, T? toAdd}) {
-    final result = <WeakReference<T>>[];
+  /// If [removeEmpty] is `true`, removes the bin if it is empty.
+  void _defragment(
+    HashCode code, {
+    T? toRemove,
+    T? toAdd,
+    bool removeEmpty = true,
+  }) {
+    var bin = _objects[code];
+    if (bin == null && toAdd == null) return;
+    bin ??= [];
+
+    final newBin = <WeakReference<T>>[];
+
     for (var i = 0; i < bin.length; i++) {
       final target = bin[i].target;
       assert(target != toAdd);
       if (target != toRemove && target != null) {
-        result.add(bin[i]);
+        newBin.add(bin[i]);
       }
     }
-    if (toAdd != null) result.add(WeakReference(toAdd));
-    if (toRemove == null && toAdd == null && result.length == bin.length) {
-      return bin;
+    if (toAdd != null) newBin.add(WeakReference(toAdd));
+    if (newBin.isEmpty && removeEmpty) {
+      _objects.remove(code);
+      return;
     }
-    return result;
+    if (toRemove == null && toAdd == null && newBin.length == bin.length) {
+      return;
+    }
+    _objects[code] = newBin;
   }
 
   void _setFinalizer(T object, int code) {
@@ -140,9 +145,7 @@ class WeakCache<T extends Object> {
     final existing = bin.firstWhereOrNull((r) => r.target == object);
     if (existing != null) return (object: existing.target!, wasAbsent: false);
 
-    final defragmented = _defragment(bin, toAdd: object);
-    assert(defragmented != bin);
-    _objects[code] = defragmented;
+    _defragment(code, toAdd: object);
     return (object: object, wasAbsent: true);
   }
 
@@ -167,8 +170,9 @@ class WeakCache<T extends Object> {
       useFinalizers == false,
       'This method is not needed when using finalizers.',
     );
-    for (final entry in _objects.entries) {
-      _objects[entry.key] = _defragment(entry.value);
+    for (final code in _objects.keys) {
+      // removeEmpty is true to avoid
+      _defragment(code, removeEmpty: true);
     }
     _objects.removeWhere((key, value) => value.isEmpty);
   }
