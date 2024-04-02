@@ -42,7 +42,8 @@ class WeakCache<T extends Object> {
     }
   }
 
-  final _objects = <HashCode, _WeakList<T>>{};
+  @visibleForTesting
+  final objects = <HashCode, _WeakList<T>>{};
 
   /// If `true`, the [Finalizer] is used to remove [WeakReference]s.
   ///
@@ -76,7 +77,7 @@ class WeakCache<T extends Object> {
   /// because weakness of the storage would make its result not persisting.
   T? locate(T object) {
     final code = object.hashCode;
-    final bin = _objects[code];
+    final bin = objects[code];
     if (bin == null) return null;
     final ref = bin.firstWhereOrNull((r) => r.target == object);
     return ref?.target;
@@ -95,14 +96,14 @@ class WeakCache<T extends Object> {
     }());
 
     final code = object.hashCode;
-    final bin = _objects[code];
+    final bin = objects[code];
     if (bin == null) return;
 
     assert(bin.isNotEmpty);
     if (bin.length == 1) {
       final target = bin[0].target;
       if (target == object || target == null) {
-        _objects.remove(code);
+        objects.remove(code);
       }
       return;
     }
@@ -126,7 +127,7 @@ class WeakCache<T extends Object> {
     T? toAdd,
     bool removeEmpty = true,
   }) {
-    var bin = _objects[code];
+    var bin = objects[code];
     if (bin == null && toAdd == null) return (removed: 0, remaining: 0);
     bin ??= [];
 
@@ -141,7 +142,7 @@ class WeakCache<T extends Object> {
     }
     if (toAdd != null) newBin.add(WeakReference(toAdd));
     if (newBin.isEmpty && removeEmpty) {
-      _objects.remove(code);
+      objects.remove(code);
       return (removed: bin.length, remaining: 0);
     }
 
@@ -152,7 +153,7 @@ class WeakCache<T extends Object> {
     if (useUnmodifiableLists) {
       newBin = List.unmodifiable(newBin);
     }
-    _objects[code] = newBin;
+    objects[code] = newBin;
     return (removed: bin.length - newBin.length, remaining: newBin.length);
   }
 
@@ -168,10 +169,10 @@ class WeakCache<T extends Object> {
   /// Otherwise adds [object] to the cache and returns it.
   T putIfAbsent(T object) {
     final code = object.hashCode;
-    final bin = _objects[code];
+    final bin = objects[code];
 
     if (bin == null) {
-      _objects[code] = List.unmodifiable([WeakReference(object)]);
+      objects[code] = List.unmodifiable([WeakReference(object)]);
       return object;
     }
 
@@ -209,12 +210,12 @@ class WeakCache<T extends Object> {
     );
     var removed = 0;
     var remaining = 0;
-    for (final code in _objects.keys) {
+    for (final code in objects.keys) {
       final result = _defragment(code, removeEmpty: true);
       removed += result.removed;
       remaining += result.remaining;
     }
-    _objects.removeWhere((key, value) => value.isEmpty);
+    objects.removeWhere((key, value) => value.isEmpty);
     return (removed: removed, remaining: remaining);
   }
 }
