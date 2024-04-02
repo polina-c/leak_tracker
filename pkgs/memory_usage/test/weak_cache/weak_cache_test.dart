@@ -9,6 +9,18 @@ import 'package:test/test.dart';
 late bool _tick;
 late WeakCache _cache;
 
+class _MyClass {
+  final int value;
+
+  _MyClass(this.value);
+
+  @override
+  bool operator ==(Object other) => other is _MyClass && other.value == value;
+
+  @override
+  int get hashCode => value;
+}
+
 final _coders = <String, HashCoder>{
   'real': standardHashCoder,
   'alwaysTheSame': (object) => 1,
@@ -27,7 +39,7 @@ void main() {
               'assertUnnecessaryRemove: $assertUnnecessaryRemove', () {
             setUp(() {
               _tick = true;
-              _cache = WeakCache(
+              _cache = WeakCache<_MyClass>(
                 coder: _coders[coderName]!,
                 useFinalizers: useFinalizers,
                 useUnmodifiableLists: useUnmodifiableLists,
@@ -35,7 +47,24 @@ void main() {
               );
             });
 
-            test('basic operations', () {});
+            test('basic operations', () {
+              final _MyClass? c11 = _MyClass(1);
+              final _MyClass? c12 = _MyClass(1);
+              final _MyClass? c2 = _MyClass(2);
+
+              expect(_cache.putIfAbsent(c11!), c11);
+              expect(_cache.putIfAbsent(c12!), c11);
+              expect(_cache.locate(c11), c11);
+              expect(_cache.locate(c12), c11);
+              expect(_cache.locate(c2!), null);
+              expect(_cache.putIfAbsent(c2), c2);
+
+              if (useFinalizers) {
+                expect(_cache.defragment(), 0);
+              } else {
+                expect(_cache.defragment(), 2);
+              }
+            });
           });
         }
       }

@@ -117,14 +117,14 @@ class WeakCache<T extends Object> {
   /// If [removeEmpty] is `true`, removes the bin if it is empty.
   /// This flag is needed to avoid exception of concurrent modification during
   /// iteration.
-  void _defragment(
+  ({int removed, int remaining}) _defragment(
     HashCode code, {
     T? toRemove,
     T? toAdd,
     bool removeEmpty = true,
   }) {
     var bin = _objects[code];
-    if (bin == null && toAdd == null) return;
+    if (bin == null && toAdd == null) return (removed: 0, remaining: 0);
     bin ??= [];
 
     var newBin = <WeakReference<T>>[];
@@ -139,10 +139,10 @@ class WeakCache<T extends Object> {
     if (toAdd != null) newBin.add(WeakReference(toAdd));
     if (newBin.isEmpty && removeEmpty) {
       _objects.remove(code);
-      return;
+      return (removed: bin.length, remaining: 0);
     }
     if (toRemove == null && toAdd == null && newBin.length == bin.length) {
-      return;
+      return (removed: 0, remaining: newBin.length);
     }
 
     if (useUnmodifiableLists) {
@@ -150,6 +150,8 @@ class WeakCache<T extends Object> {
     }
 
     _objects[code] = newBin;
+
+    return (removed: bin.length - newBin.length, remaining: newBin.length);
   }
 
   void _maybeSetFinalizer(T object, int code) {
@@ -157,22 +159,27 @@ class WeakCache<T extends Object> {
     _finalizer?.attach(object: object, token: code);
   }
 
-  ({T object, bool wasAbsent}) putIfAbsent(T object) {
+  /// Adds [object] to the cache if it is not there.
+  ///
+  /// If and object equal [object] to is already in the cache,
+  /// that object from cache.
+  /// Otherwise adds [object] to the cache and returns it.
+  T putIfAbsent(T object) {
     final code = coder(object);
     final bin = _objects[code];
 
     if (bin == null) {
       _objects[code] = List.unmodifiable([WeakReference(object)]);
-      return (object: object, wasAbsent: true);
+      return object;
     }
 
     assert(bin.isNotEmpty);
     final existing = bin.firstWhereOrNull((r) => r.target == object);
-    if (existing != null) return (object: existing.target!, wasAbsent: false);
+    if (existing != null) return existing.target!;
 
     _defragment(code, toAdd: object);
     _maybeSetFinalizer(object, code);
-    return (object: object, wasAbsent: true);
+    return object;
   }
 
   /// Removes empty instances of [WeakReference] used to store removed items.
@@ -191,15 +198,21 @@ class WeakCache<T extends Object> {
   /// This method is not noticed to block UI thread.
   /// If it happened for your application, please
   /// [file an issue](https://github.com/dart-lang/leak_tracker/issues/new/choose).
-  void defragment() {
+  ///
+  /// Returns number of remaining instances.
+  ({int removed, int remaining}) defragment() {
     assert(
       useFinalizers == false,
       'This method is not needed when using finalizers.',
     );
+    var removed = 0;
+    var remaining = 0;
     for (final code in _objects.keys) {
-      // removeEmpty is true to avoid
-      _defragment(code, removeEmpty: true);
+      final result = _defragment(code, removeEmpty: true);
+      removed += result.removed;
+      remaining += result.remaining;
     }
     _objects.removeWhere((key, value) => value.isEmpty);
+    return (removed: removed, remaining: remaining);
   }
 }
