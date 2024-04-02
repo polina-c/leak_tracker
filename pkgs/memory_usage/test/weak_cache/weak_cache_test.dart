@@ -32,21 +32,21 @@ void main() {
             _cache = WeakCache<_MyClass>(
               useFinalizers: useFinalizers,
               useUnmodifiableLists: useUnmodifiableLists,
-              assertUnnecessaryRemove: assertUnnecessaryRemove,
+              assertOnRemove: assertUnnecessaryRemove,
             );
           });
 
           test('basic operations', () {
-            final _MyClass? c11 = _MyClass(1);
+            _MyClass? c11 = _MyClass(1);
             final c12 = _MyClass(1);
-            final _MyClass? c2 = _MyClass(2);
+            _MyClass? c2 = _MyClass(2);
 
-            expect(_cache.locate(c11!), null);
+            expect(_cache.locate(c11), null);
             expect(_cache.putIfAbsent(c11), c11);
             expect(_cache.putIfAbsent(c12), c11);
             expect(_cache.locate(c11), c11);
             expect(_cache.locate(c12), c11);
-            expect(_cache.locate(c2!), null);
+            expect(_cache.locate(c2), null);
             expect(_cache.putIfAbsent(c2), c2);
             expect(_cache.locate(c2), c2);
 
@@ -57,6 +57,9 @@ void main() {
               expect(d.remaining, 2);
               expect(d.removed, 0);
             }
+
+            c11 = null;
+            c2 = null;
           });
         });
       }
