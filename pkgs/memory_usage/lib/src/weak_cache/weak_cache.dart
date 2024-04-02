@@ -9,7 +9,8 @@ import '_finalizer.dart';
 
 typedef _WeakList<T extends Object> = List<WeakReference<T>>;
 
-typedef _HashCode = int;
+@visibleForTesting
+typedef HashCode = int;
 
 /// Weak cache for objects.
 ///
@@ -28,20 +29,20 @@ typedef _HashCode = int;
 /// with [useFinalizers] and [useUnmodifiableLists].
 class WeakCache<T extends Object> {
   WeakCache({
-    @visibleForTesting FinalizerBuilder<_HashCode>? finalizerBuilder,
+    @visibleForTesting FinalizerBuilder<HashCode>? finalizerBuilder,
     this.useFinalizers = true,
     this.useUnmodifiableLists = true,
     this.assertUnnecessaryRemove = true,
   }) {
     if (useFinalizers) {
-      finalizerBuilder ??= buildStandardFinalizer<_HashCode>;
+      finalizerBuilder ??= buildStandardFinalizer<HashCode>;
       _finalizer = finalizerBuilder(_onObjectGarbageCollected);
     } else {
       _finalizer = null;
     }
   }
 
-  final _objects = <_HashCode, _WeakList<T>>{};
+  final _objects = <HashCode, _WeakList<T>>{};
 
   /// If `true`, the [Finalizer] is used to remove [WeakReference]s.
   ///
@@ -50,7 +51,7 @@ class WeakCache<T extends Object> {
 
   final bool assertUnnecessaryRemove;
 
-  late final FinalizerWrapper<_HashCode>? _finalizer;
+  late final FinalizerWrapper<HashCode>? _finalizer;
 
   /// Weather to optimize internal lists fr memory footprint.
   ///
@@ -60,7 +61,7 @@ class WeakCache<T extends Object> {
   /// If `false`, the lists are optimized for performance.
   final bool useUnmodifiableLists;
 
-  void _onObjectGarbageCollected(_HashCode token) {
+  void _onObjectGarbageCollected(HashCode token) {
     _defragment(token);
   }
 
@@ -115,7 +116,7 @@ class WeakCache<T extends Object> {
   /// This flag is needed to avoid exception of concurrent modification during
   /// iteration.
   ({int removed, int remaining}) _defragment(
-    _HashCode code, {
+    HashCode code, {
     T? toRemove,
     T? toAdd,
     bool removeEmpty = true,
