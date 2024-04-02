@@ -6,9 +6,10 @@ import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
 import '_finalizer.dart';
-import '_hash_coder.dart';
 
 typedef _WeakList<T extends Object> = List<WeakReference<T>>;
+
+typedef _HashCode = int;
 
 /// Weak cache for objects.
 ///
@@ -27,21 +28,20 @@ typedef _WeakList<T extends Object> = List<WeakReference<T>>;
 /// with [useFinalizers] and [useUnmodifiableLists].
 class WeakCache<T extends Object> {
   WeakCache({
-    @visibleForTesting this.coder = standardHashCoder,
-    @visibleForTesting FinalizerBuilder<HashCode>? finalizerBuilder,
+    @visibleForTesting FinalizerBuilder<_HashCode>? finalizerBuilder,
     this.useFinalizers = true,
     this.useUnmodifiableLists = true,
     this.assertUnnecessaryRemove = true,
   }) {
     if (useFinalizers) {
-      finalizerBuilder ??= buildStandardFinalizer<HashCode>;
+      finalizerBuilder ??= buildStandardFinalizer<_HashCode>;
       _finalizer = finalizerBuilder(_onObjectGarbageCollected);
     } else {
       _finalizer = null;
     }
   }
 
-  final _objects = <HashCode, _WeakList<T>>{};
+  final _objects = <_HashCode, _WeakList<T>>{};
 
   /// If `true`, the [Finalizer] is used to remove [WeakReference]s.
   ///
@@ -50,7 +50,7 @@ class WeakCache<T extends Object> {
 
   final bool assertUnnecessaryRemove;
 
-  late final FinalizerWrapper<HashCode>? _finalizer;
+  late final FinalizerWrapper<_HashCode>? _finalizer;
 
   /// Weather to optimize internal lists fr memory footprint.
   ///
@@ -60,10 +60,7 @@ class WeakCache<T extends Object> {
   /// If `false`, the lists are optimized for performance.
   final bool useUnmodifiableLists;
 
-  @visibleForTesting
-  final HashCoder coder;
-
-  void _onObjectGarbageCollected(HashCode token) {
+  void _onObjectGarbageCollected(_HashCode token) {
     _defragment(token);
   }
 
@@ -72,7 +69,7 @@ class WeakCache<T extends Object> {
   /// Method `contains` is not implemented intentionally,
   /// because weakness of the storage would make its result not persisting.
   T? locate(T object) {
-    final code = coder(object);
+    final code = object.hashCode;
     final bin = _objects[code];
     if (bin == null) return null;
     final ref = bin.firstWhereOrNull((r) => r.target == object);
@@ -91,7 +88,7 @@ class WeakCache<T extends Object> {
       return true;
     }());
 
-    final code = coder(object);
+    final code = object.hashCode;
     final bin = _objects[code];
     if (bin == null) return;
 
@@ -118,7 +115,7 @@ class WeakCache<T extends Object> {
   /// This flag is needed to avoid exception of concurrent modification during
   /// iteration.
   ({int removed, int remaining}) _defragment(
-    HashCode code, {
+    _HashCode code, {
     T? toRemove,
     T? toAdd,
     bool removeEmpty = true,
@@ -141,6 +138,7 @@ class WeakCache<T extends Object> {
       _objects.remove(code);
       return (removed: bin.length, remaining: 0);
     }
+
     if (toRemove == null && toAdd == null && newBin.length == bin.length) {
       return (removed: 0, remaining: newBin.length);
     }
@@ -148,9 +146,7 @@ class WeakCache<T extends Object> {
     if (useUnmodifiableLists) {
       newBin = List.unmodifiable(newBin);
     }
-
     _objects[code] = newBin;
-
     return (removed: bin.length - newBin.length, remaining: newBin.length);
   }
 
@@ -165,7 +161,7 @@ class WeakCache<T extends Object> {
   /// that object from cache.
   /// Otherwise adds [object] to the cache and returns it.
   T putIfAbsent(T object) {
-    final code = coder(object);
+    final code = object.hashCode;
     final bin = _objects[code];
 
     if (bin == null) {
